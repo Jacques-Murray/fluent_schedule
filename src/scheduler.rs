@@ -1,3 +1,4 @@
+use crate::error::SchedulerError;
 use crate::job::Job;
 use std::thread;
 use std::time::Duration;
@@ -25,8 +26,9 @@ impl Scheduler {
 
     /// Adds a configured Job to the scheduler.
     ///
-    /// Jobs will not be added if they have not been finalized
-    /// with a `.run()` call.
+    /// This function will return an error if the job has
+    /// an invalid configuration (e.g., bad time string)
+    /// or if `.run()` was not called.
     ///
     /// # Examples
     ///
@@ -35,14 +37,32 @@ impl Scheduler {
     ///
     /// let job = Job::new().every(1u32.seconds()).run(|| {});
     /// let mut scheduler = Scheduler::new();
-    /// scheduler.add(job);
+    ///
+    /// if let Err(e) = scheduler.add(job) {
+    ///     eprintln!("Failed to add job: {}", e);
+    /// }
     /// ```
-    pub fn add(&mut self, job: Job) {
-        if job.task.is_none() {
-            // Optionally log a warning: job added without a .run() task
-            return;
-        }
+    ///
+    /// ### Example of handling an error
+    ///
+    /// ```
+    /// use fluent_schedule::{Scheduler, Job, SchedulerError};
+    ///
+    /// // This job has an invalid time string.
+    /// let invalid_job = Job::new().at("99:99").run(|| {});
+    ///
+    /// let mut scheduler = Scheduler::new();
+    /// let result = scheduler.add(invalid_job);
+    ///
+    /// assert!(result.is_err());
+    /// assert!(matches!(result.unwrap_err(), SchedulerError::InvalidTimeFormat(_)));
+    /// ```
+    pub fn add(&mut self, job: Job) -> Result<(), SchedulerError> {
+        // Check for any build errors or missing task
+        job.check_for_errors()?;
+
         self.jobs.push(job);
+        Ok(())
     }
 
     /// Starts the scheduler and runs it forever in a loop.
@@ -59,7 +79,8 @@ impl Scheduler {
 
         loop {
             let now = chrono::Local::now();
-            let mut sleep_duration = Duration::from_secs(60); // Default sleep
+            // Start with a default 1-minute sleep
+            let mut sleep_duration = Duration::from_secs(60);
 
             for job in &mut self.jobs {
                 if now >= job.next_run {
@@ -100,7 +121,7 @@ impl Default for Scheduler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{FluentDuration, Job};
+    use crate::{FluentDuration, Job, SchedulerError};
     use std::sync::{Arc, Mutex};
     use std::thread;
     use std::time::Duration;
@@ -118,7 +139,7 @@ mod tests {
     fn test_scheduler_add_valid_job() {
         let mut scheduler = Scheduler::new();
         let job = Job::new().every(1u32.seconds()).run(|| {});
-        scheduler.add(job);
+        assert!(scheduler.add(job).is_ok());
         assert_eq!(scheduler.jobs.len(), 1);
     }
 
@@ -127,15 +148,31 @@ mod tests {
         let mut scheduler = Scheduler::new();
         // This job has no .run() call
         let job = Job::new().every(1u32.seconds());
-        scheduler.add(job);
-        // Should not be added
+        let result = scheduler.add(job);
+
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), SchedulerError::TaskNotSet);
+        assert_eq!(scheduler.jobs.len(), 0);
+    }
+
+    #[test]
+    fn test_scheduler_add_job_invalid_time() {
+        let mut scheduler = Scheduler::new();
+        let job = Job::new().at("bad-time").run(|| {});
+        let result = scheduler.add(job);
+
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            SchedulerError::InvalidTimeFormat("bad-time".to_string())
+        );
         assert_eq!(scheduler.jobs.len(), 0);
     }
 
     #[test]
     fn test_scheduler_run_forever_empty() {
         let scheduler = Scheduler::new();
-        // We run this is a thread. The `run_forever` method should see
+        // We run this in a thread. The `run_forever` method should see
         // no jobs and return immediately.
         let handle = thread::spawn(move || {
             scheduler.run_forever();
@@ -150,7 +187,7 @@ mod tests {
 
     #[test]
     fn test_scheduler_integration_run_job() {
-        // Use an Arc<Mutex> to share a counter between this test
+        // Use an Arc<Mutex> to share a counter between this
         // and the thread running the scheduler.
         let counter = Arc::new(Mutex::new(0));
         let counter_clone = Arc::clone(&counter);
@@ -162,7 +199,7 @@ mod tests {
         });
 
         let mut scheduler = Scheduler::new();
-        scheduler.add(job);
+        scheduler.add(job).unwrap(); // Add the valid job
 
         // Run the scheduler in its own thread
         thread::spawn(move || {

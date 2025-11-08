@@ -21,9 +21,9 @@ fn main() {
     let mut scheduler = Scheduler::new();
 
     // Add the jobs
-    scheduler.add(job1);
-    scheduler.add(job2);
-    scheduler.add(job3);
+    scheduler.add(job1).expect("Failed to add job1");
+    scheduler.add(job2).expect("Failed to add job2");
+    scheduler.add(job3).expect("Failed to add job3");
 
     println!("Starting scheduler...");
     // This will block forever
