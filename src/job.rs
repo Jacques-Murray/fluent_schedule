@@ -1,5 +1,4 @@
-use crate::time_units::FluentDuration;
-use chrono::{DateTime, Datelike, Duration as ChronoDuration, Local, NaiveTime, Timelike, Weekday};
+use chrono::{DateTime, Datelike, Duration as ChronoDuration, Local, NaiveTime, Weekday};
 use std::collections::HashSet;
 use std::time::Duration;
 
@@ -17,7 +16,7 @@ struct ScheduleRules {
 /// A configurable Job that can be added to a Scheduler.
 pub struct Job {
     rules: ScheduleRules,
-    task: Option<Task>,
+    pub(crate) task: Option<Task>,
     pub(crate) next_run: DateTime<Local>,
 }
 
