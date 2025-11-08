@@ -139,6 +139,7 @@ impl Default for Job {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::time_units::FluentDuration;
     use chrono::{Datelike, Duration as ChronoDuration, Local, NaiveTime, TimeZone, Weekday};
 
     // Helper: Create a fixed "now" for predictable tests.
