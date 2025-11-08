@@ -4,7 +4,7 @@ use fluent_schedule::{FluentDuration, Job, Scheduler};
 fn main() {
     // Define the tasks
     let job1 = Job::new()
-        .every(5.seconds())
+        .every(5u32.seconds())
         .run(|| println!("Task 1: Running every 5 seconds."));
 
     let job2 = Job::new()
