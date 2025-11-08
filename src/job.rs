@@ -135,3 +135,173 @@ impl Default for Job {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{Datelike, Duration as ChronoDuration, Local, NaiveTime, TimeZone, Weekday};
+
+    // Helper: Create a fixed "now" for predictable tests.
+    // This date (2025-11-10) is a Monday at 12:00:00
+    fn fixed_now() -> DateTime<Local> {
+        Local.with_ymd_and_hms(2025, 11, 10, 12, 0, 0).unwrap()
+    }
+
+    #[test]
+    fn test_job_new_and_default() {
+        let job_new = Job::new();
+        assert!(job_new.rules.interval.is_none());
+        assert!(job_new.rules.at_time.is_none());
+        assert!(job_new.rules.days_of_week.is_empty());
+        assert!(job_new.task.is_none());
+
+        let job_default = Job::default();
+        assert!(job_default.rules.interval.is_none());
+    }
+
+    #[test]
+    fn test_job_builder_every() {
+        let job = Job::new().every(10u32.minutes());
+        assert_eq!(job.rules.interval, Some(10u32.minutes()));
+        assert!(job.rules.at_time.is_none()); // .every() should clear .at()
+    }
+
+    #[test]
+    fn test_job_builder_at() {
+        let job = Job::new().at("10:30");
+        assert_eq!(
+            job.rules.at_time,
+            Some(NaiveTime::from_hms_opt(10, 30, 0).unwrap())
+        );
+        assert!(job.rules.interval.is_none()); // .at() should clear .every()
+
+        let job_secs = Job::new().at("10:30:45");
+        assert_eq!(
+            job_secs.rules.at_time,
+            Some(NaiveTime::from_hms_opt(10, 30, 45).unwrap())
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid time format")]
+    fn test_job_builder_at_invalid_panic() {
+        Job::new().at("not-a-time");
+    }
+
+    #[test]
+    fn test_job_builder_on_days() {
+        let job = Job::new().on(Weekday::Mon).on(Weekday::Fri);
+        assert!(job.rules.days_of_week.contains(&Weekday::Mon));
+        assert!(job.rules.days_of_week.contains(&Weekday::Fri));
+        assert!(!job.rules.days_of_week.contains(&Weekday::Tue));
+    }
+
+    #[test]
+    fn test_job_builder_on_weekday() {
+        let job = Job::new().on_weekday();
+        assert!(job.rules.days_of_week.contains(&Weekday::Mon));
+        assert!(job.rules.days_of_week.contains(&Weekday::Tue));
+        assert!(job.rules.days_of_week.contains(&Weekday::Wed));
+        assert!(job.rules.days_of_week.contains(&Weekday::Thu));
+        assert!(job.rules.days_of_week.contains(&Weekday::Fri));
+        assert!(!job.rules.days_of_week.contains(&Weekday::Sat));
+        assert!(!job.rules.days_of_week.contains(&Weekday::Sun));
+    }
+
+    #[test]
+    fn test_job_builder_on_weekend() {
+        let job = Job::new().on_weekend();
+        assert!(!job.rules.days_of_week.contains(&Weekday::Mon));
+        assert!(job.rules.days_of_week.contains(&Weekday::Sat));
+        assert!(job.rules.days_of_week.contains(&Weekday::Sun));
+    }
+
+    #[test]
+    fn test_job_run_and_take_task() {
+        let mut job = Job::new().every(1u32.seconds()).run(|| println!("test"));
+        assert!(job.task.is_some());
+
+        let task = job.take_task();
+        assert!(task.is_some());
+        assert!(job.task.is_none()); // Task should be gone
+    }
+
+    // --- Tests for calculate_next_run ---
+
+    #[test]
+    fn test_calc_interval() {
+        let now = fixed_now();
+        let job = Job::new().every(5u32.minutes());
+        let next = job.calculate_next_run(now);
+        assert_eq!(next, now + ChronoDuration::try_minutes(5).unwrap());
+    }
+
+    #[test]
+    fn test_calc_at_today_future() {
+        let now = fixed_now(); // 12:00
+        let job = Job::new().at("14:00");
+        let next = job.calculate_next_run(now);
+
+        let expected_time = NaiveTime::from_hms_opt(14, 0, 0).unwrap();
+        assert_eq!(next.date_naive(), now.date_naive()); // Same day
+        assert_eq!(next.time(), expected_time);
+    }
+
+    #[test]
+    fn test_calc_at_today_past() {
+        let now = fixed_now(); // 12:00
+        let job = Job::new().at("10:00");
+        let next = job.calculate_next_run(now);
+
+        let expected_time = NaiveTime::from_hms_opt(10, 0, 0).unwrap();
+        let expected_date = now.date_naive() + ChronoDuration::try_days(1).unwrap(); // Tomorrow
+        assert_eq!(next.date_naive(), expected_date);
+        assert_eq!(next.time(), expected_time);
+    }
+
+    #[test]
+    fn test_calc_at_on_day_future() {
+        let now = fixed_now(); // Monday 12:00
+        let job = Job::new().on(Weekday::Mon).at("15:00"); // Today, in the future
+        let next = job.calculate_next_run(now);
+
+        assert_eq!(next.date_naive(), now.date_naive()); // Today
+        assert_eq!(next.weekday(), Weekday::Mon);
+        assert_eq!(next.time(), NaiveTime::from_hms_opt(15, 0, 0).unwrap());
+    }
+
+    #[test]
+    fn test_calc_at_on_day_past() {
+        let now = fixed_now(); // Monday 12:00
+        let job = Job::new().on(Weekday::Mon).at("11:00"); // Today, but in the past
+        let next = job.calculate_next_run(now);
+
+        let expected_date = now.date_naive() + ChronoDuration::try_weeks(1).unwrap(); // Next Monday
+        assert_eq!(next.date_naive(), expected_date);
+        assert_eq!(next.weekday(), Weekday::Mon);
+        assert_eq!(next.time(), NaiveTime::from_hms_opt(11, 0, 0).unwrap());
+    }
+
+    #[test]
+    fn test_calc_at_on_other_day() {
+        let now = fixed_now(); // Monday 12:00
+        let job = Job::new().on(Weekday::Wed).at("14:00"); // This coming Wednesday
+        let next = job.calculate_next_run(now);
+
+        let expected_date = now.date_naive() + ChronoDuration::try_days(2).unwrap(); // This Wed
+        assert_eq!(next.date_naive(), expected_date);
+        assert_eq!(next.weekday(), Weekday::Wed);
+        assert_eq!(next.time(), NaiveTime::from_hms_opt(14, 0, 0).unwrap());
+    }
+
+    #[test]
+    fn test_calc_no_schedule() {
+        let now = fixed_now();
+        // A job with a task but no schedule rules
+        let job = Job::new().run(|| {});
+        let next = job.calculate_next_run(now);
+
+        // Should be scheduled for 1 year in the future (effectively disabled)
+        assert_eq!(next, now + ChronoDuration::try_days(365).unwrap());
+    }
+}
