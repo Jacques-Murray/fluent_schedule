@@ -135,7 +135,6 @@ mod tests {
         assert_eq!(scheduler_default.jobs.len(), 0);
     }
 
-    // --- UPDATE THIS TEST ---
     #[test]
     fn test_scheduler_add_valid_job() {
         let mut scheduler = Scheduler::new();
@@ -144,7 +143,6 @@ mod tests {
         assert_eq!(scheduler.jobs.len(), 1);
     }
 
-    // --- UPDATE THIS TEST ---
     #[test]
     fn test_scheduler_add_job_no_task() {
         let mut scheduler = Scheduler::new();
@@ -157,7 +155,6 @@ mod tests {
         assert_eq!(scheduler.jobs.len(), 0);
     }
 
-    // --- ADD THIS TEST ---
     #[test]
     fn test_scheduler_add_job_invalid_time() {
         let mut scheduler = Scheduler::new();

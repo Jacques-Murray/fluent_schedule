@@ -299,8 +299,6 @@ mod tests {
         assert!(job2.rules.interval.is_none());
     }
 
-    // --- (rest of tests are the same) ---
-
     #[test]
     fn test_job_builder_on_days() {
         let job = Job::new().on(Weekday::Mon).on(Weekday::Fri);
