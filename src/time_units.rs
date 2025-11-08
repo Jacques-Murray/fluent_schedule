@@ -1,14 +1,43 @@
 use std::time::Duration;
 
 /// A trait to provide fluent, human-readable Duration creation.
+///
+/// This allows you to write `5u32.minutes()` instead of `Duration::from_secs(300)`.
 pub trait FluentDuration {
     /// Creates a Duration in seconds.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_schedule::FluentDuration;
+    /// use std::time::Duration;
+    ///
+    /// assert_eq!(10u32.seconds(), Duration::from_secs(10));
+    /// ```
     fn seconds(self) -> Duration;
 
     /// Creates a Duration in minutes.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_schedule::FluentDuration;
+    /// use std::time::Duration;
+    ///
+    /// assert_eq!(2u32.minutes(), Duration::from_secs(120));
+    /// ```
     fn minutes(self) -> Duration;
 
     /// Creates a Duration in hours.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_schedule::FluentDuration;
+    /// use std::time::Duration;
+    ///
+    /// assert_eq!(1u32.hours(), Duration::from_secs(3600));
+    /// ```
     fn hours(self) -> Duration;
 }
 

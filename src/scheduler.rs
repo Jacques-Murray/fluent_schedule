@@ -3,18 +3,40 @@ use std::thread;
 use std::time::Duration;
 
 /// The main scheduler runtime.
-/// It holds all jobs and runs them at their scheduled times.
+///
+/// It holds all configured jobs and runs them at their scheduled times
+/// in a blocking loop.
 pub struct Scheduler {
     jobs: Vec<Job>,
 }
 
 impl Scheduler {
     /// Creates a new, empty Scheduler.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_scheduler::Scheduler;
+    /// let scheduler = Scheduler::new();
+    /// ```
     pub fn new() -> Self {
         Self { jobs: Vec::new() }
     }
 
     /// Adds a configured Job to the scheduler.
+    ///
+    /// Jobs will not be added if they have not been finalized
+    /// with a `.run()` call.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_schedule::{Scheduler, Job, FluentDuration};
+    ///
+    /// let job = Job::new().every(1u32.seconds()).run(|| {});
+    /// let mut scheduler = Scheduler::new();
+    /// scheduler.add(job);
+    /// ```
     pub fn add(&mut self, job: Job) {
         if job.task.is_none() {
             // Optionally log a warning: job added without a .run() task
@@ -24,7 +46,12 @@ impl Scheduler {
     }
 
     /// Starts the scheduler and runs it forever in a loop.
-    /// This function will block the current thread.
+    ///
+    /// This function will block the current thread. It continuously
+    /// checks for pending jobs, runs them, and then sleeps until
+    /// the next job is due.
+    ///
+    /// If no jobs are added, this function returns immediately.
     pub fn run_forever(mut self) {
         if self.jobs.is_empty() {
             return; // No jobs, nothing to do
@@ -64,6 +91,7 @@ impl Scheduler {
 }
 
 impl Default for Scheduler {
+    /// Creates a new, empty Scheduler.
     fn default() -> Self {
         Self::new()
     }

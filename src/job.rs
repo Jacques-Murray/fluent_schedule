@@ -14,6 +14,26 @@ struct ScheduleRules {
 }
 
 /// A configurable Job that can be added to a Scheduler.
+///
+/// This struct uses a builder pattern to define a schedule.
+///
+/// # Examples
+///
+/// ```
+/// use fluent_schedule::{Job, FluentDuration};
+/// use chrono::Weekday;
+///
+/// // A job that runs every 5 minutes
+/// let job1 = Job::new()
+///     .every(5u32.minutes())
+///     .run(|| println!("Five minutes passed!"));
+///
+/// // A job that runs at 9:30 AM on Mondays
+/// let job2 = Job::new()
+///     .on(Weekday::Mon)
+///     .at("09:30")
+///     .run(|| println!("Monday meeting!"));
+/// ```
 pub struct Job {
     rules: ScheduleRules,
     pub(crate) task: Option<Task>,
@@ -22,6 +42,7 @@ pub struct Job {
 
 impl Job {
     /// Creates a new, empty job.
+    /// This is the entry point for the builder pattern.
     pub fn new() -> Self {
         Self {
             rules: ScheduleRules::default(),
@@ -32,7 +53,16 @@ impl Job {
     }
 
     /// Schedules the job to run at a fixed interval.
-    /// Example: `Job::new().every(5.minutes())`
+    ///
+    /// This is incompatible with `.at()` and day-based scheduling.
+    /// If `.at()` was set, it will be cleared.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_schedule::{Job, FluentDuration};
+    /// let job = Job::new().every(10u32.seconds());
+    /// ```
     pub fn every(mut self, interval: Duration) -> Self {
         self.rules.interval = Some(interval);
         // Interval jobs are incompatible with specific-time jobs
@@ -42,8 +72,24 @@ impl Job {
     }
 
     /// Schedules the job to run at a specific time of day.
-    /// Expects format "HH:MM" or "HH:MM:SS".
-    /// Example: `Job::new().at("17:00")`.
+    ///
+    /// This is incompatible with `.every()`.
+    /// If `.every()` was set, it will be cleared.
+    ///
+    /// # Arguments
+    ///
+    /// * `time_str` - A string representing the time, e.g., `"17:00"` or `"09:30:45"`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the `time_str` is not in `HH:MM` or `HH:MM:SS` format.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_schedule::Job;
+    /// let job = Job::new().at("17:00"); // 5:00 PM
+    /// ```
     pub fn at(mut self, time_str: &str) -> Self {
         let time = NaiveTime::parse_from_str(time_str, "%H:%M")
             .or_else(|_| NaiveTime::parse_from_str(time_str, "%H:%M:%S"))
@@ -56,14 +102,34 @@ impl Job {
     }
 
     /// Adds a specific day of the week for the job to run.
-    /// This is often used with `.at()`.
-    /// Example: `Job::new().on(Weekday::Mon).at("09:00")`
+    /// This is most useful when combined with `.at()`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_schedule::Job;
+    /// use chrono::Weekday;
+    ///
+    /// // Run at 10:00 on Monday and Friday
+    /// let job = Job::new()
+    ///     .on(Weekday::Mon)
+    ///     .on(Weekday::Fri)
+    ///     .at("10:00");
+    /// ```
     pub fn on(mut self, day: Weekday) -> Self {
         self.rules.days_of_week.insert(day);
         self
     }
 
-    /// A helper to schedule a job for all weekdays.
+    /// A helper to schedule a job for all weekdays (Mon-Fri).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_schedule::Job;
+    /// // Run at 5:00 PM every weekday
+    /// let job = Job::new().on_weekday().at("17:00");
+    /// ```
     pub fn on_weekday(self) -> Self {
         self.on(Weekday::Mon)
             .on(Weekday::Tue)
@@ -72,12 +138,25 @@ impl Job {
             .on(Weekday::Fri)
     }
 
-    /// A helper to schedule a job for the weekend.
+    /// A helper to schedule a job for the weekend (Sat-Sun).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fluent_schedule::Job;
+    /// // Run at 10:00 AM every weekends
+    /// let job = Job::new().on_weekend().at("10:00");
+    /// ```
     pub fn on_weekend(self) -> Self {
         self.on(Weekday::Sat).on(Weekday::Sun)
     }
 
-    /// Sets the task to be executed. This finalizes the Job configuration.
+    /// Sets the task to be executed.
+    /// This finalizes the Job configuration and calculates its first run time.
+    ///
+    /// # Arguments
+    ///
+    /// * `task` - A closure (`FnMut`) that will be executed.
     pub fn run<F>(mut self, task: F) -> Self
     where
         F: FnMut() + Send + 'static,
