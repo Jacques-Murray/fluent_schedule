@@ -1,11 +1,12 @@
+use crate::error::SchedulerError;
 use chrono::{DateTime, Datelike, Duration as ChronoDuration, Local, NaiveTime, Weekday};
 use std::collections::HashSet;
 use std::time::Duration;
 
-// Type alias for the boxed task function.
+// Type alias for the boxed task function
 type Task = Box<dyn FnMut() + Send + 'static>;
 
-/// Represents the set of rules for a schedule.
+/// Represents the set of rules for a schedule
 #[derive(Default)]
 struct ScheduleRules {
     interval: Option<Duration>,
@@ -38,6 +39,7 @@ pub struct Job {
     rules: ScheduleRules,
     pub(crate) task: Option<Task>,
     pub(crate) next_run: DateTime<Local>,
+    build_error: Option<SchedulerError>,
 }
 
 impl Job {
@@ -49,6 +51,7 @@ impl Job {
             task: None,
             // Default to now, will be recalculated when .run() is called
             next_run: Local::now(),
+            build_error: None,
         }
     }
 
@@ -64,6 +67,11 @@ impl Job {
     /// let job = Job::new().every(10u32.seconds());
     /// ```
     pub fn every(mut self, interval: Duration) -> Self {
+        // Do nothing if an error is already present
+        if self.build_error.is_some() {
+            return self;
+        }
+
         self.rules.interval = Some(interval);
         // Interval jobs are incompatible with specific-time jobs
         self.rules.at_time = None;
@@ -76,6 +84,9 @@ impl Job {
     /// This is incompatible with `.every()`.
     /// If `.every()` was set, it will be cleared.
     ///
+    /// This function no longer panics. If the time format is invalid,
+    /// the error is stored and will be returned when `Scheduler::add()` is called.
+    ///
     /// # Arguments
     ///
     /// * `time_str` - A string representing the time, e.g., `"17:00"` or `"09:30:45"`.
@@ -87,13 +98,24 @@ impl Job {
     /// let job = Job::new().at("17:00"); // 5:00 PM
     /// ```
     pub fn at(mut self, time_str: &str) -> Self {
-        let time = NaiveTime::parse_from_str(time_str, "%H:%M")
-            .or_else(|_| NaiveTime::parse_from_str(time_str, "%H:%M:%S"))
-            .expect("Invalid time format. Use 'HH:MM' or 'HH:MM:SS'");
+        // Do nothing if an error is already present
+        if self.build_error.is_some() {
+            return self;
+        }
 
-        self.rules.at_time = Some(time);
-        // Specific-time jobs are incompatible with interval jobs
-        self.rules.interval = None;
+        match NaiveTime::parse_from_str(time_str, "%H:%M")
+            .or_else(|_| NaiveTime::parse_from_str(time_str, "%H:%M:%S"))
+        {
+            Ok(time) => {
+                self.rules.at_time = Some(time);
+                // Specific-time jobs are incompatible with interval jobs
+                self.rules.interval = None;
+            }
+            Err(_) => {
+                // Store the error instead of panicking
+                self.build_error = Some(SchedulerError::InvalidTimeFormat(time_str.to_string()));
+            }
+        }
         self
     }
 
@@ -140,7 +162,7 @@ impl Job {
     ///
     /// ```
     /// use fluent_schedule::Job;
-    /// // Run at 10:00 AM every weekends
+    /// // Run at 10:00 AM on weekends
     /// let job = Job::new().on_weekend().at("10:00");
     /// ```
     pub fn on_weekend(self) -> Self {
@@ -153,10 +175,16 @@ impl Job {
     /// # Arguments
     ///
     /// * `task` - A closure (`FnMut`) that will be executed.
+    ///
     pub fn run<F>(mut self, task: F) -> Self
     where
         F: FnMut() + Send + 'static,
     {
+        // Do nothing if an error is already present
+        if self.build_error.is_some() {
+            return self;
+        }
+
         self.task = Some(Box::new(task));
         // Calculate the first run time
         self.next_run = self.calculate_next_run(Local::now());
@@ -168,12 +196,22 @@ impl Job {
         self.task.take()
     }
 
+    /// Internal: Checks the job for configuration errors.
+    pub(crate) fn check_for_errors(&self) -> Result<(), SchedulerError> {
+        if let Some(err) = &self.build_error {
+            return Err(err.clone());
+        }
+        if self.task.is_none() {
+            return Err(SchedulerError::TaskNotSet);
+        }
+        Ok(())
+    }
+
     /// Internal: Calculates the next execution time based on the rules.
     pub(crate) fn calculate_next_run(&self, from: DateTime<Local>) -> DateTime<Local> {
         // Case 1: Interval-based job
         if let Some(interval) = self.rules.interval {
             // This is simple: just add the interval
-            // We use std::time::Duration, need to convert to chrono::Duration
             let chrono_interval =
                 ChronoDuration::from_std(interval).expect("Interval duration is too large");
             return from + chrono_interval;
@@ -188,7 +226,7 @@ impl Job {
                 next_run = next_run + ChronoDuration::try_days(1).expect("Duration overflow");
             }
 
-            // If day contraints exist, find the next valid day
+            // If day constraints exist, find the next valid day
             if !self.rules.days_of_week.is_empty() {
                 while !self.rules.days_of_week.contains(&next_run.weekday()) {
                     next_run = next_run + ChronoDuration::try_days(1).expect("Duration overflow");
@@ -206,6 +244,7 @@ impl Job {
 }
 
 impl Default for Job {
+    /// Creates a new, empty job.
     fn default() -> Self {
         Self::new()
     }
@@ -230,6 +269,7 @@ mod tests {
         assert!(job_new.rules.at_time.is_none());
         assert!(job_new.rules.days_of_week.is_empty());
         assert!(job_new.task.is_none());
+        assert!(job_new.build_error.is_none());
 
         let job_default = Job::default();
         assert!(job_default.rules.interval.is_none());
@@ -250,6 +290,7 @@ mod tests {
             Some(NaiveTime::from_hms_opt(10, 30, 0).unwrap())
         );
         assert!(job.rules.interval.is_none()); // .at() should clear .every()
+        assert!(job.build_error.is_none());
 
         let job_secs = Job::new().at("10:30:45");
         assert_eq!(
@@ -258,11 +299,31 @@ mod tests {
         );
     }
 
+    // --- THIS IS THE CRITICAL CHANGE ---
+    // --- DELETE the #[should_panic] test ---
+    // #[test]
+    // #[should_panic(expected = "Invalid time format")]
+    // fn test_job_builder_at_invalid_panic() {
+    //     Job::new().at("not-a-time");
+    // }
+
+    // --- ADD THIS TEST INSTEAD ---
     #[test]
-    #[should_panic(expected = "Invalid time format")]
-    fn test_job_builder_at_invalid_panic() {
-        Job::new().at("not-a-time");
+    fn test_job_builder_at_invalid_no_panic() {
+        let job = Job::new().at("not-a-time");
+        assert!(job.build_error.is_some());
+        assert_eq!(
+            job.build_error.as_ref().unwrap(),
+            &SchedulerError::InvalidTimeFormat("not-a-time".to_string())
+        );
+
+        // Subsequent calls should be ignored
+        let job2 = job.every(10u32.seconds());
+        assert!(job2.build_error.is_some()); // Error should persist
+        assert!(job2.rules.interval.is_none()); // .every() should not have run
     }
+
+    // --- (rest of tests are the same) ---
 
     #[test]
     fn test_job_builder_on_days() {
@@ -302,6 +363,15 @@ mod tests {
         assert!(job.task.is_none()); // Task should be gone
     }
 
+    #[test]
+    fn test_job_run_with_build_error() {
+        // Job has an error
+        let job = Job::new().at("bad-time").run(|| {});
+        // .run() should not have set the task
+        assert!(job.task.is_none());
+        assert!(job.build_error.is_some());
+    }
+
     // --- Tests for calculate_next_run ---
 
     #[test]
@@ -326,7 +396,7 @@ mod tests {
     #[test]
     fn test_calc_at_today_past() {
         let now = fixed_now(); // 12:00
-        let job = Job::new().at("10:00");
+        let job = Job::new().at("10:00"); // 10:00 is in the past
         let next = job.calculate_next_run(now);
 
         let expected_time = NaiveTime::from_hms_opt(10, 0, 0).unwrap();
@@ -379,5 +449,25 @@ mod tests {
 
         // Should be scheduled for 1 year in the future (effectively disabled)
         assert_eq!(next, now + ChronoDuration::try_days(365).unwrap());
+    }
+
+    #[test]
+    fn test_job_check_for_errors() {
+        // No error
+        let job_ok = Job::new().every(1u32.seconds()).run(|| {});
+        assert!(job_ok.check_for_errors().is_ok());
+
+        // Invalid time error
+        let job_err_time = Job::new().at("bad-time").run(|| {});
+        let err = job_err_time.check_for_errors().unwrap_err();
+        assert_eq!(
+            err,
+            SchedulerError::InvalidTimeFormat("bad-time".to_string())
+        );
+
+        // No task error
+        let job_err_task = Job::new().every(1u32.seconds());
+        let err = job_err_task.check_for_errors().unwrap_err();
+        assert_eq!(err, SchedulerError::TaskNotSet);
     }
 }

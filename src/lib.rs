@@ -21,7 +21,8 @@
 //!
 //! // Add the job
 //! if let Err(e) = scheduler.add(job1) {
-//!     eprintln!("Failed to add job: {}", e);
+//!     eprintln!("Error adding job: {}", e);
+//!     return;
 //! }
 //!
 //! // Run the scheduler (this blocks the thread)
@@ -37,11 +38,13 @@
 //! let job2 = Job::new()
 //!     .on_weekday()
 //!     .at("17:00")
-//!     .run(|| println!("Task 2: Running at 5PM on weekdays."));
+//!     .run(|| println!("Task 2: Running at 5 PM on weekdays."));
 //!
 //! let mut scheduler = Scheduler::new();
+//!
 //! if let Err(e) = scheduler.add(job2) {
-//!     eprintln!("Failed to add job: {}", e);
+//!     eprintln!("Error adding job: {}", e);
+//!     return;
 //! }
 //!
 //! scheduler.run_forever();
