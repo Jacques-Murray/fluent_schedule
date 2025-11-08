@@ -1,0 +1,9 @@
+[package]
+name = "fluent_schedule"
+version = "0.1.0"
+edition = "2024"
+description = "A human-readable, fluent task scheduling library for Rust."
+license = "MIT"
+
+[dependencies]
+chrono = "0.4.42"
