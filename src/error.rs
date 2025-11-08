@@ -31,5 +31,4 @@ impl fmt::Display for SchedulerError {
     }
 }
 
-// This allows SchedulerError to be used as a standard error
 impl std::error::Error for SchedulerError {}
