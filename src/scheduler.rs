@@ -16,7 +16,7 @@ impl Scheduler {
     /// # Examples
     ///
     /// ```
-    /// use fluent_scheduler::Scheduler;
+    /// use fluent_schedule::Scheduler;
     /// let scheduler = Scheduler::new();
     /// ```
     pub fn new() -> Self {
