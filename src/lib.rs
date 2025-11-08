@@ -9,7 +9,7 @@
 //! Scheduling a task to run every 5 seconds:
 //!
 //! ```no_run
-//! use fluent_schedule::{Job, Scheduler, FluentDuration};
+//! use fluent_schedule::{Job, Scheduler, FluentDuration, SchedulerError};
 //!
 //! // Define a task
 //! let job1 = Job::new()
@@ -20,16 +20,18 @@
 //! let mut scheduler = Scheduler::new();
 //!
 //! // Add the job
-//! scheduler.add(job1);
+//! if let Err(e) = scheduler.add(job1) {
+//!     eprintln!("Failed to add job: {}", e);
+//! }
 //!
 //! // Run the scheduler (this blocks the thread)
 //! scheduler.run_forever();
 //! ```
 //!
-//! Sceduling a task for a specific time:
+//! Scheduling a task for a specific time:
 //!
 //! ```no_run
-//! use fluent_schedule::{Job, Scheduler};
+//! use fluent_schedule::{Job, Scheduler, SchedulerError};
 //! use chrono::Weekday;
 //!
 //! let job2 = Job::new()
@@ -38,15 +40,20 @@
 //!     .run(|| println!("Task 2: Running at 5PM on weekdays."));
 //!
 //! let mut scheduler = Scheduler::new();
-//! scheduler.add(job2);
+//! if let Err(e) = scheduler.add(job2) {
+//!     eprintln!("Failed to add job: {}", e);
+//! }
+//!
 //! scheduler.run_forever();
 //! ```
 
+mod error;
 mod job;
 mod scheduler;
 mod time_units;
 
 // Public exports
+pub use error::SchedulerError;
 pub use job::Job;
 pub use scheduler::Scheduler;
 pub use time_units::FluentDuration;

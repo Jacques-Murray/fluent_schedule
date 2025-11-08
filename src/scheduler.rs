@@ -25,8 +25,9 @@ impl Scheduler {
 
     /// Adds a configured Job to the scheduler.
     ///
-    /// Jobs will not be added if they have not been finalized
-    /// with a `.run()` call.
+    /// This function will return an error if the job has
+    /// an invalid configuration (e.g., bad time string)
+    /// or if `.run()` was not called.
     ///
     /// # Examples
     ///
@@ -35,7 +36,25 @@ impl Scheduler {
     ///
     /// let job = Job::new().every(1u32.seconds()).run(|| {});
     /// let mut scheduler = Scheduler::new();
-    /// scheduler.add(job);
+    ///
+    /// if let Err(e) = scheduler.add(job){
+    ///     eprintln!("Failed to add job: {}", e);
+    /// }
+    /// ```
+    ///
+    /// ### Example of handling an error
+    ///
+    /// ```
+    /// use fluent_schedule::{Scheduler, Job, SchedulerError};
+    ///
+    /// // This job has an invalid time string.
+    /// let invalid_job = Job::new().at("99:99").run(|| {});
+    ///
+    /// let mut scheduler = Scheduler::new();
+    /// let result = scheduler.add(invalid_job);
+    ///
+    /// assert!(result.is_err());
+    /// assert!(matches!(result.unwrap_err(), SchedulerError::InvalidTimeFormat(_)));
     /// ```
     pub fn add(&mut self, job: Job) {
         if job.task.is_none() {

@@ -80,10 +80,6 @@ impl Job {
     ///
     /// * `time_str` - A string representing the time, e.g., `"17:00"` or `"09:30:45"`.
     ///
-    /// # Panics
-    ///
-    /// Panics if the `time_str` is not in `HH:MM` or `HH:MM:SS` format.
-    ///
     /// # Examples
     ///
     /// ```
