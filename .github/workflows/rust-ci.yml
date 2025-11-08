@@ -1,0 +1,35 @@
+name: Rust CI - Build on PR
+
+on:
+  # Triggers the workflow on pull requests targeting the 'main' branch
+  pull_request:
+    branches:
+      - main
+
+# Use concurrency to cancel any in-progress runs on the same PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Get the repository code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Install the Rust toolchain (e.g., stable)
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # 3. Cache Cargo dependencies for faster builds
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+
+      # 4. Run the build and all tests
+      # 'cargo test' builds all required targets and runs the test suite.
+      - name: Run Tests (includes build)
+        run: cargo test --verbose
