@@ -8,5 +8,5 @@ license = "MIT"
 [dependencies]
 chrono = "0.4.42"
 
-[workspace.metadata.release]
+[package.metadata.release]
 changelog = true
