@@ -22,7 +22,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-fluent_schedule = "0.1.0"
+fluent_schedule = "1.0.0"
 ```
 
 ## Quick Start
