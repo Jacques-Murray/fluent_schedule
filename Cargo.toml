@@ -4,6 +4,7 @@ version = "1.0.0"
 edition = "2024"
 description = "A human-readable, fluent task scheduling library for Rust."
 license = "MIT"
+repository = "https://github.com/Jacques-Murray/fluent_schedule"
 
 [dependencies]
 chrono = "0.4.42"
