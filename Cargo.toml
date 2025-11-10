@@ -9,4 +9,4 @@ license = "MIT"
 chrono = "0.4.42"
 
 [package.metadata.release]
-changelog = true
+changelog-update = true
