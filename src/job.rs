@@ -213,12 +213,12 @@ impl Job {
             let mut next_run = from.date_naive().and_time(time);
 
             if from.time() >= time {
-                next_run = next_run + ChronoDuration::try_days(1).expect("Duration overflow");
+                next_run += ChronoDuration::try_days(1).expect("Duration overflow");
             }
 
             if !self.rules.days_of_week.is_empty() {
                 while !self.rules.days_of_week.contains(&next_run.weekday()) {
-                    next_run = next_run + ChronoDuration::try_days(1).expect("Duration overflow");
+                    next_run += ChronoDuration::try_days(1).expect("Duration overflow");
                 }
             }
 
@@ -438,5 +438,30 @@ mod tests {
         let job_err_task = Job::new().every(1u32.seconds());
         let err = job_err_task.check_for_errors().unwrap_err();
         assert_eq!(err, SchedulerError::TaskNotSet);
+    }
+
+    #[test]
+    fn calendar_schedules_skip_excluded_days_and_equal_times() {
+        let friday = Local.with_ymd_and_hms(2025, 11, 14, 17, 0, 0).unwrap();
+        let weekday = Job::new().on_weekday().at("17:00");
+        let next = weekday.calculate_next_run(friday);
+        assert_eq!(next.weekday(), Weekday::Mon);
+        assert_eq!(
+            next.date_naive(),
+            friday.date_naive() + ChronoDuration::days(3)
+        );
+        assert_eq!(next.time(), friday.time());
+
+        let weekend = Job::new().on_weekend().at("10:00");
+        let saturday = weekend.calculate_next_run(friday);
+        assert_eq!(saturday.weekday(), Weekday::Sat);
+        let sunday = weekend.calculate_next_run(saturday);
+        assert_eq!(sunday.weekday(), Weekday::Sun);
+        let following_saturday = weekend.calculate_next_run(sunday);
+        assert_eq!(following_saturday.weekday(), Weekday::Sat);
+        assert_eq!(
+            following_saturday.date_naive(),
+            sunday.date_naive() + ChronoDuration::days(6)
+        );
     }
 }
