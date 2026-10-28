@@ -6,7 +6,7 @@ Thank you for your interest in contributing to Fluent Schedule! This document pr
 
 ### Prerequisites
 
-- Rust 1.70 or later (stable toolchain recommended)
+- Stable Rust (1.85 or later is required by edition 2024)
 - Git
 
 ### Getting Started
@@ -32,17 +32,17 @@ Thank you for your interest in contributing to Fluent Schedule! This document pr
 
 Build the project:
 ```bash
-cargo build
+cargo build --locked
 ```
 
 Run tests:
 ```bash
-cargo test
+cargo test --locked
 ```
 
 Run tests with verbose output:
 ```bash
-cargo test --verbose
+cargo test --locked --verbose
 ```
 
 Run a specific example:
@@ -70,7 +70,7 @@ cargo fmt
 
 Check for linting issues:
 ```bash
-cargo clippy
+cargo clippy --locked --all-targets --all-features -- -D warnings
 ```
 
 ## Testing

@@ -13,8 +13,8 @@ A human-readable, fluent task scheduling library for Rust. This library provides
 - **Flexible Scheduling**: Support for intervals, specific times, and day-of-week scheduling
 - **Type Safety**: Compile-time guarantees for valid configurations
 - **Error Handling**: Clear error messages for invalid configurations
-- **Zero Dependencies**: Only depends on `chrono` for time handling
-- **Thread Safe**: Jobs can be safely shared across threads
+- **Minimal Dependencies**: Only depends on `chrono` for time handling
+- **Sendable Jobs**: Jobs can be moved to a scheduler on another thread
 
 ## Installation
 
@@ -162,17 +162,33 @@ cargo run --example simple
 
 ## Testing
 
-Run the test suite:
+From a fresh clone, install stable Rust (Rust 1.85 or newer is required for
+edition 2024), then run:
 
 ```bash
-cargo test
+git clone https://github.com/Jacques-Murray/fluent_schedule.git
+cd fluent_schedule
+cargo build --locked --all-targets
+cargo test --locked --all-features --verbose
+cargo fmt --all --check
+cargo clippy --locked --all-targets --all-features -- -D warnings
 ```
 
-Run with verbose output:
+The committed `Cargo.lock` makes repository builds reproducible. Tests include
+unit tests, public API integration tests in `tests/`, and documentation examples.
+
+CI runs these checks on every push and pull request. It also audits dependencies
+and enforces at least 70% line coverage. To run those checks locally:
 
 ```bash
-cargo test --verbose
+rustup component add llvm-tools-preview
+cargo install cargo-llvm-cov --locked
+cargo llvm-cov --locked --all-features --fail-under-lines 70
+cargo install cargo-audit --locked
+cargo audit
 ```
+
+Dependabot checks Cargo dependencies and GitHub Actions weekly.
 
 ## Documentation
 
